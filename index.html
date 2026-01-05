@@ -756,8 +756,8 @@
                 faceMesh.setOptions({
                     maxNumFaces: 1,
                     refineLandmarks: true,
-                    minDetectionConfidence: 0.3,
-                    minTrackingConfidence: 0.3
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
                 });
 
                 faceMesh.onResults(onFaceResults);
@@ -886,12 +886,35 @@
         document.getElementById('startBtn').addEventListener('click', startMonitoring);
         document.getElementById('stopBtn').addEventListener('click', stopMonitoring);
 
-        // Volume slider
+       // Volume slider - cập nhật ngay lập tức
         document.getElementById('volumeSlider').addEventListener('input', (e) => {
             CONFIG.VOLUME = e.target.value / 100;
             document.getElementById('volumeValue').textContent = e.target.value + '%';
         });
 
+        // EAR Threshold - cập nhật ngay lập tức
+        document.getElementById('earThreshold').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (value >= 0.1 && value <= 0.4) {
+                CONFIG.EAR_THRESHOLD = value;
+            }
+        });
+
+        // Drowsy Frames - cập nhật ngay lập tức
+        document.getElementById('drowsyFrames').addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            if (value >= 5 && value <= 60) {
+                CONFIG.CONSECUTIVE_FRAMES = value;
+            }
+        });
+
+        // Hand Off Frames - cập nhật ngay lập tức
+        document.getElementById('handFrames').addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            if (value >= 10 && value <= 90) {
+                CONFIG.HAND_OFF_FRAMES = value;
+            }
+        });
         // Khởi tạo khi trang load
         window.addEventListener('load', () => {
             console.log('🚗 Hệ thống cảnh báo tài xế ');
