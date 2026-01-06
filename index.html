@@ -357,7 +357,6 @@
             border-radius: 3px;
             background: #2a2a2a;
             outline: none;
-            -webkit-appearance: none;
         }
 
         input[type="range"]::-webkit-slider-thumb {
@@ -536,18 +535,21 @@
         </div>
     </div>
 
+    <audio id="drowsyAlert" preload="auto">
+        <source src="https://files.catbox.moe/ou9wbx.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="handOffAlert" preload="auto">
+        <source src="https://files.catbox.moe/n49uum.mp3" type="audio/mpeg">
+    </audio>
+
     <script>
-        // Cấu hình mặc định
         let CONFIG = {
             EAR_THRESHOLD: 0.25,
             CONSECUTIVE_FRAMES: 20,
             HAND_OFF_FRAMES: 30,
-            ALERT_SOUND_FREQ: 1000,
-            ALERT_SOUND_DURATION: 500,
             VOLUME: 1.0
         };
 
-        // Biến toàn cục
         let faceMesh, hands, camera;
         let earCounter = 0;
         let handOffCounter = 0;
@@ -555,52 +557,38 @@
         let handAlertCount = 0;
         let isDrowsyAlerting = false;
         let isHandAlerting = false;
-        let audioContext;
         let isRunning = false;
         let lastFrameTime = Date.now();
         let fps = 0;
         let faceResults = null;
         let handsResults = null;
 
-        // Các chỉ số landmark cho mắt
+        let drowsyAlertAudio = document.getElementById('drowsyAlert');
+        let handOffAlertAudio = document.getElementById('handOffAlert');
+
         const LEFT_EYE = [362, 385, 387, 263, 373, 380];
         const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
 
-        // Khởi tạo Audio Context
-        function initAudio() {
+        function playDrowsyAlert() {
             try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                drowsyAlertAudio.volume = CONFIG.VOLUME;
+                drowsyAlertAudio.currentTime = 0;
+                drowsyAlertAudio.play().catch(e => console.error('Lỗi phát âm thanh ngủ gật:', e));
             } catch (e) {
-                showError('Không thể khởi tạo âm thanh. Trình duyệt không hỗ trợ.');
+                console.error('Lỗi phát âm thanh ngủ gật:', e);
             }
         }
 
-        // Phát âm thanh cảnh báo
-        function playAlert(frequency = CONFIG.ALERT_SOUND_FREQ, duration = CONFIG.ALERT_SOUND_DURATION) {
-            if (!audioContext) initAudio();
-            if (!audioContext) return;
-            
+        function playHandOffAlert() {
             try {
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.frequency.value = frequency;
-                oscillator.type = 'sine';
-                
-                gainNode.gain.setValueAtTime(CONFIG.VOLUME, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
-                
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + duration / 1000);
+                handOffAlertAudio.volume = CONFIG.VOLUME;
+                handOffAlertAudio.currentTime = 0;
+                handOffAlertAudio.play().catch(e => console.error('Lỗi phát âm thanh tay rời:', e));
             } catch (e) {
-                console.error('Lỗi phát âm thanh:', e);
+                console.error('Lỗi phát âm thanh tay rời:', e);
             }
         }
 
-        // Hiển thị lỗi
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = '❌ ' + message;
@@ -610,26 +598,21 @@
             }, 5000);
         }
 
-        // Tính khoảng cách Euclidean
         function distance(p1, p2) {
             return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
         }
 
-        // Tính Eye Aspect Ratio (EAR)
         function calculateEAR(eyeLandmarks) {
             const A = distance(eyeLandmarks[1], eyeLandmarks[5]);
             const B = distance(eyeLandmarks[2], eyeLandmarks[4]);
             const C = distance(eyeLandmarks[0], eyeLandmarks[3]);
-            
             return (A + B) / (2.0 * C);
         }
 
-        // Lấy landmarks của mắt
         function getEyeLandmarks(landmarks, eyeIndices) {
             return eyeIndices.map(idx => landmarks[idx]);
         }
 
-        // Tính FPS
         function updateFPS() {
             const now = Date.now();
             const delta = now - lastFrameTime;
@@ -638,7 +621,6 @@
             document.getElementById('fpsValue').textContent = fps;
         }
 
-        // Render canvas
         function renderCanvas() {
             if (!isRunning) return;
 
@@ -652,7 +634,6 @@
             ctx.save();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Vẽ face mesh nếu có
             if (faceResults && faceResults.multiFaceLandmarks && faceResults.multiFaceLandmarks.length > 0) {
                 const landmarks = faceResults.multiFaceLandmarks[0];
 
@@ -660,7 +641,6 @@
                 window.drawConnectors(ctx, landmarks, window.FACEMESH_RIGHT_EYE, {color: '#10b981', lineWidth: 2});
                 window.drawConnectors(ctx, landmarks, window.FACEMESH_LEFT_EYE, {color: '#10b981', lineWidth: 2});
 
-                // Tính EAR
                 const leftEye = getEyeLandmarks(landmarks, LEFT_EYE);
                 const rightEye = getEyeLandmarks(landmarks, RIGHT_EYE);
                 
@@ -670,7 +650,6 @@
 
                 document.getElementById('earValue').textContent = ear.toFixed(2);
 
-                // Kiểm tra ngủ gật
                 if (ear < CONFIG.EAR_THRESHOLD) {
                     earCounter++;
                     
@@ -680,7 +659,7 @@
                             drowsyAlertCount++;
                             document.getElementById('drowsyAlerts').textContent = drowsyAlertCount;
                             document.getElementById('alertDrowsy').style.display = 'block';
-                            playAlert(1000, 500);
+                            playDrowsyAlert();
                         }
                     }
                 } else {
@@ -692,7 +671,6 @@
                 document.getElementById('drowsyFramesCount').textContent = earCounter;
             }
 
-            // Vẽ hands nếu có
             if (handsResults && handsResults.multiHandLandmarks && handsResults.multiHandLandmarks.length > 0) {
                 for (const landmarks of handsResults.multiHandLandmarks) {
                     window.drawConnectors(ctx, landmarks, window.HANDS_CONNECTIONS, {color: '#10b981', lineWidth: 3});
@@ -704,14 +682,12 @@
             updateFPS();
         }
 
-        // Xử lý kết quả Face Mesh
         function onFaceResults(results) {
             if (!isRunning) return;
             faceResults = results;
             renderCanvas();
         }
 
-        // Xử lý kết quả Hand Detection
         function onHandsResults(results) {
             if (!isRunning) return;
             handsResults = results;
@@ -722,7 +698,6 @@
                 handsDetected = true;
             }
 
-            // Kiểm tra tay rời vô lăng
             if (!handsDetected) {
                 handOffCounter++;
                 
@@ -732,7 +707,7 @@
                         handAlertCount++;
                         document.getElementById('handAlerts').textContent = handAlertCount;
                         document.getElementById('alertHands').style.display = 'block';
-                        playAlert(1500, 300);
+                        playHandOffAlert();
                     }
                 }
                 document.getElementById('statusText').textContent = 'Không phát hiện tay';
@@ -746,7 +721,6 @@
             document.getElementById('handOffFramesCount').textContent = handOffCounter;
         }
 
-        // Khởi tạo MediaPipe Face Mesh
         function initFaceMesh() {
             try {
                 faceMesh = new FaceMesh({
@@ -767,7 +741,6 @@
             }
         }
 
-        // Khởi tạo MediaPipe Hands
         function initHands() {
             try {
                 hands = new Hands({
@@ -788,7 +761,6 @@
             }
         }
 
-        // Bắt đầu camera
         async function startCamera() {
             const video = document.getElementById('video');
             
@@ -807,13 +779,12 @@
                 await camera.start();
                 document.getElementById('loading').style.display = 'none';
             } catch (e) {
-                showError('Lỗi khởi động hoặc từ chối cấp quyền sử dụng camera: ' + e.message);
+                showError('Lỗi khởi động hoặc từ chối quyền sử dụng camera: ' + e.message);
                 document.getElementById('loading').style.display = 'none';
                 throw e;
             }
         }
 
-        // Bắt đầu giám sát
         async function startMonitoring() {
             try {
                 isRunning = true;
@@ -821,50 +792,51 @@
                 document.getElementById('stopBtn').disabled = false;
                 document.getElementById('loading').style.display = 'block';
                 
-                // Cập nhật config từ settings
                 CONFIG.EAR_THRESHOLD = parseFloat(document.getElementById('earThreshold').value);
                 CONFIG.CONSECUTIVE_FRAMES = parseInt(document.getElementById('drowsyFrames').value);
                 CONFIG.HAND_OFF_FRAMES = parseInt(document.getElementById('handFrames').value);
                 
-                if (!faceMesh) initFaceMesh();
-                if (!hands) initHands();
-                if (!camera) await startCamera();
-                
-                document.getElementById('statusText').textContent = 'Đang theo dõi...';
+                if (!faceMesh || !hands) {
+                    initFaceMesh();
+                    initHands();
+                }
+
+                if (!camera) {
+                    await startCamera();
+                }
             } catch (e) {
-                isRunning = false;
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('stopBtn').disabled = true;
-                console.error('Lỗi khi bắt đầu:', e);
+                showError('Lỗi khởi động: ' + e.message);
+                stopMonitoring();
             }
         }
 
-         //Dừng giám sát
         function stopMonitoring() {
             isRunning = false;
             document.getElementById('startBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
             
-            //Tắt camera
             if (camera) {
                 camera.stop();
                 camera = null;
             }
             
-            //Dừng video stream
             const video = document.getElementById('video');
             if (video.srcObject) {
                 const tracks = video.srcObject.getTracks();
                 tracks.forEach(track => track.stop());
                 video.srcObject = null;
             }
+
+            drowsyAlertAudio.pause();
+            drowsyAlertAudio.currentTime = 0;
+            handOffAlertAudio.pause();
+            handOffAlertAudio.currentTime = 0;
+
             
-            //Xóa canvas
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            //Reset các biến
             earCounter = 0;
             handOffCounter = 0;
             isDrowsyAlerting = false;
@@ -872,7 +844,6 @@
             faceResults = null;
             handsResults = null;
             
-            //Reset các cảnh báo
             document.getElementById('alertDrowsy').style.display = 'none';
             document.getElementById('alertHands').style.display = 'none';
             document.getElementById('statusText').textContent = 'Đã dừng';
@@ -881,18 +852,16 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').innerHTML = '<div>📸 Hãy cho phép sử dụng camera để bắt đầu giám sát</div>';
         }
-
-        //Event listeners
+        
         document.getElementById('startBtn').addEventListener('click', startMonitoring);
         document.getElementById('stopBtn').addEventListener('click', stopMonitoring);
 
-       // Volume slider - cập nhật ngay lập tức
         document.getElementById('volumeSlider').addEventListener('input', (e) => {
-            CONFIG.VOLUME = e.target.value / 100;
-            document.getElementById('volumeValue').textContent = e.target.value + '%';
+            const volume = e.target.value;
+            CONFIG.VOLUME = volume / 100;
+            document.getElementById('volumeValue').textContent = volume + '%';
         });
-
-        // EAR Threshold - cập nhật ngay lập tức
+        
         document.getElementById('earThreshold').addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             if (value >= 0.1 && value <= 0.4) {
@@ -900,7 +869,6 @@
             }
         });
 
-        // Drowsy Frames - cập nhật ngay lập tức
         document.getElementById('drowsyFrames').addEventListener('input', (e) => {
             const value = parseInt(e.target.value);
             if (value >= 5 && value <= 60) {
@@ -908,17 +876,16 @@
             }
         });
 
-        // Hand Off Frames - cập nhật ngay lập tức
         document.getElementById('handFrames').addEventListener('input', (e) => {
             const value = parseInt(e.target.value);
             if (value >= 10 && value <= 90) {
                 CONFIG.HAND_OFF_FRAMES = value;
             }
         });
-        // Khởi tạo khi trang load
         window.addEventListener('load', () => {
             console.log('🚗 Hệ thống cảnh báo tài xế ');
         });
     </script>
 </body>
 </html>
+  
