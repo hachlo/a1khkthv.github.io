@@ -22,8 +22,9 @@
         @media (max-width: 1024px) { .main-content { grid-template-columns: 1fr; } }
         .video-section { display: flex; flex-direction: column; gap: 20px; }
         .video-container { position: relative; background: #000; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a2a; aspect-ratio: 16/9; }
-        video { width: 100%; height: 100%; display: block; object-fit: cover; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        video { width: 100%; height: 100%; display: block; object-fit: cover; transform: scaleX(-1); }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
         
         .alert-drowsy, .alert-hands, .alert-yawn, .alert-sos {
             position: absolute; left: 0; right: 0; padding: 24px; text-align: center;
@@ -70,7 +71,7 @@
         .settings-title { font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: #fff; }
         .setting-item { margin-bottom: 20px; }
         .setting-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.85em; color: #aaa; }
-        input[type="range"] { width: 100%; height: 6px; background: #2a2a2a; border-radius: 3px; }
+        input[type="range"] { width: 100%; height: 6px; background: #2a2a2a; border-radius: 3px; -webkit-appearance: none; }
         input[type="number"], input[type="text"] { width: 100%; padding: 8px 12px; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; outline: none; }
         input[type="number"] { width: 80px; }
         .divider { height: 1px; background: #2a2a2a; margin: 20px 0; }
@@ -106,7 +107,7 @@
                     <canvas id="canvas"></canvas>
                     
                     <div id="loading" class="loading">
-                        <div>📸 Hãy cho phép sử dụng camera để bắt đầu giám sát</div>
+                        <div>📸 Đang khởi động Camera AI...</div>
                     </div>
                     
                     <div id="alertDrowsy" class="alert-drowsy">⚠️ CẢNH BÁO: TÀI XẾ NGỦ GẬT</div>
@@ -181,12 +182,16 @@
         </div>
     </div>
 
-    <audio id="drowsyAlert" src="https://files.catbox.moe/ou9wbx.mp3" preload="auto"></audio>
-    <audio id="handOffAlert" src="https://files.catbox.moe/n49uum.mp3" preload="auto"></audio>
+    <audio id="drowsyAlert" src="https://files.catbox.moe/n49uum.mp3" preload="auto"></audio>
+    <audio id="handOffAlert" src="https://files.catbox.moe/ou9wbx.mp3" preload="auto"></audio>
     <audio id="sosSound" src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_14167e8c32.mp3" preload="auto"></audio>
 
     <script>
- 
+
+        if (location.protocol === 'file:') {
+            alert("⚠️ CẢNH BÁO: Bạn đang mở file trực tiếp!\nAI sẽ không hoạt động.\nVui lòng dùng 'Open with Live Server' trong VS Code.");
+        }
+
         let CONFIG = {
             EAR_THRESHOLD: 0.25,
             MAR_THRESHOLD: 0.5,
@@ -218,8 +223,7 @@
 
         const LEFT_EYE = [362, 385, 387, 263, 373, 380];
         const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
-        const MOUTH = [13, 14, 61, 291]; 
-
+        
         const els = {
             video: document.getElementById('video'),
             canvas: document.getElementById('canvas'),
@@ -261,12 +265,15 @@
         }
 
         function playSound(audioEl) {
+            if (!isRunning) { audioEl.pause(); return; }
             if (isSOSActive && audioEl !== els.soundSOS) return;
             audioEl.volume = CONFIG.VOLUME;
-            audioEl.play().catch(e => console.log("Audio play blocked by browser"));
+            audioEl.play().catch(e => console.log("Audio play blocked"));
         }
 
         function checkSOSStatus() {
+            if (!isRunning) return;
+            
             if (isDrowsyAlerting || isHandAlerting) {
                 if (!dangerStartTime) {
                     dangerStartTime = Date.now();
@@ -289,6 +296,7 @@
         }
 
         function triggerSOS() {
+            if (!isRunning) return;
             isSOSActive = true;
             els.alertSOS.style.display = 'block';
             els.soundSOS.loop = true;
@@ -297,15 +305,10 @@
             const phone = document.getElementById('emergencyContact').value;
             const msg = "KHẨN CẤP: Tài xế xe đang gặp nguy hiểm (không phản hồi).";
             
-            console.log("TRIGGERING SOS TO: " + phone);
-            
             if (phone) {
-
                 setTimeout(() => {
-                    window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
-                }, 1000); // Đợi 1s để âm thanh kịp chạy
-            } else {
-                alert("Vui lòng nhập SĐT người thân trong phần cài đặt!");
+                   if(isRunning) window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
+                }, 1000);
             }
         }
 
@@ -317,8 +320,12 @@
         }
 
         function onFaceResults(results) {
-            if (!isRunning || !results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+
+            if (!isRunning) return; 
+
+            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
             const landmarks = results.multiFaceLandmarks[0];
+
 
             window.drawConnectors(els.ctx, landmarks, window.FACEMESH_TESSELATION, {color: '#3a3a3a40', lineWidth: 1});
 
@@ -369,7 +376,9 @@
         }
 
         function onHandsResults(results) {
+
             if (!isRunning) return;
+
             let handsDetected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
 
             if (handsDetected) {
@@ -404,19 +413,22 @@
             faceMesh.onResults(onFaceResults);
 
             hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+            hands.setOptions({maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
             hands.onResults(onHandsResults);
         }
 
         async function startSystem() {
             try {
- 
+
+                els.canvas.style.display = 'block';
+                els.canvas.style.opacity = '1';
+
                 els.soundSOS.play().then(() => els.soundSOS.pause()).catch(() => {});
                 
                 isRunning = true;
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = false;
-                document.getElementById('loading').style.display = 'block';
+                document.getElementById('loading').style.display = 'flex';
                 document.getElementById('errorMessage').style.display = 'none';
 
                 CONFIG.EAR_THRESHOLD = parseFloat(document.getElementById('earThreshold').value);
@@ -430,9 +442,18 @@
                     onFrame: async () => {
                         if (!isRunning) return;
                         
+
+                        if (els.canvas.width === 0) {
+                            els.canvas.width = video.videoWidth;
+                            els.canvas.height = video.videoHeight;
+                        }
+
                         els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-                        els.canvas.width = video.videoWidth;
-                        els.canvas.height = video.videoHeight;
+
+                        if (els.canvas.width > 0) {
+                            els.canvas.width = video.videoWidth;
+                            els.canvas.height = video.videoHeight;
+                        }
                         
                         await faceMesh.send({image: video});
                         await hands.send({image: video});
@@ -462,14 +483,37 @@
         }
 
         function stopSystem() {
+            console.log("STOPPING SYSTEM...");
             isRunning = false;
+            
             if(camera) camera.stop();
+
+            const stream = els.video.srcObject;
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                els.video.srcObject = null;
+            }
+
             document.getElementById('startBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
+            document.getElementById('loading').style.display = 'none';
+
+            dangerStartTime = null;
+            isSOSActive = false;
+            stopSOS();
+            document.getElementById('alertSOS').style.display = 'none';
+            document.getElementById('sosTimerDisplay').style.display = 'none';
             els.alertDrowsy.style.display = 'none';
             els.alertHands.style.display = 'none';
             els.alertYawn.style.display = 'none';
-            stopSOS();
+
+            els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+
+            els.canvas.width = 0;
+            els.canvas.height = 0;
+
+            els.canvas.style.display = 'none';
         }
 
         document.getElementById('startBtn').addEventListener('click', startSystem);
