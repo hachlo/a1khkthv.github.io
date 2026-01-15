@@ -71,7 +71,7 @@
         .settings-title { font-size: 1.1em; font-weight: 600; margin-bottom: 20px; color: #fff; }
         .setting-item { margin-bottom: 20px; }
         .setting-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.85em; color: #aaa; }
-        input[type="range"] { width: 100%; height: 6px; background: #2a2a2a; border-radius: 3px; -webkit-appearance: none; }
+        input[type="range"] { width: 100%; height: 6px; background: #2a2a2a; border-radius: 3px; }
         input[type="number"], input[type="text"] { width: 100%; padding: 8px 12px; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; outline: none; }
         input[type="number"] { width: 80px; }
         .divider { height: 1px; background: #2a2a2a; margin: 20px 0; }
@@ -182,12 +182,11 @@
         </div>
     </div>
 
-    <audio id="drowsyAlert" src="https://files.catbox.moe/n49uum.mp3" preload="auto"></audio>
-    <audio id="handOffAlert" src="https://files.catbox.moe/ou9wbx.mp3" preload="auto"></audio>
+    <audio id="drowsyAlert" src="https://files.catbox.moe/ou9wbx.mp3" preload="auto"></audio>
+    <audio id="handOffAlert" src="https://files.catbox.moe/n49uum.mp3" preload="auto"></audio>
     <audio id="sosSound" src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_14167e8c32.mp3" preload="auto"></audio>
 
     <script>
-
         if (location.protocol === 'file:') {
             alert("⚠️ CẢNH BÁO: Bạn đang mở file trực tiếp!\nAI sẽ không hoạt động.\nVui lòng dùng 'Open with Live Server' trong VS Code.");
         }
@@ -197,7 +196,7 @@
             MAR_THRESHOLD: 0.5,
             DROWSY_FRAMES: 20,
             YAWN_FRAMES: 20,
-            HAND_OFF_FRAMES: 30,
+            HAND_OFF_FRAMES: 30, 
             SOS_TIMEOUT_MS: 180000,   
             VOLUME: 1.0
         };
@@ -244,6 +243,31 @@
             soundSOS: document.getElementById('sosSound')
         };
 
+        (function injectHandSettings() {
+            const marInput = document.getElementById('marThreshold');
+            if(marInput) {
+                const container = marInput.closest('.setting-item');
+                const newDiv = document.createElement('div');
+                newDiv.className = 'setting-item';
+                newDiv.innerHTML = `
+                    <div class="setting-label">
+                        <span>Rời tay (Frames)</span>
+                        <input type="number" id="handFrameInput" value="${CONFIG.HAND_OFF_FRAMES}" step="5">
+                    </div>
+                `;
+                container.parentNode.insertBefore(newDiv, container.nextSibling);
+
+                setTimeout(() => {
+                    document.getElementById('handFrameInput').addEventListener('change', (e) => {
+                        let val = parseInt(e.target.value);
+                        if(val < 5) val = 5; 
+                        CONFIG.HAND_OFF_FRAMES = val;
+                        console.log("Đã cập nhật Hand Frames:", CONFIG.HAND_OFF_FRAMES);
+                    });
+                }, 500);
+            }
+        })();
+
         function distance(p1, p2) {
             return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
         }
@@ -268,7 +292,7 @@
             if (!isRunning) { audioEl.pause(); return; }
             if (isSOSActive && audioEl !== els.soundSOS) return;
             audioEl.volume = CONFIG.VOLUME;
-            audioEl.play().catch(e => console.log("Audio play blocked"));
+            audioEl.play().catch(e => {});
         }
 
         function checkSOSStatus() {
@@ -320,12 +344,10 @@
         }
 
         function onFaceResults(results) {
-
             if (!isRunning) return; 
 
             if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
             const landmarks = results.multiFaceLandmarks[0];
-
 
             window.drawConnectors(els.ctx, landmarks, window.FACEMESH_TESSELATION, {color: '#3a3a3a40', lineWidth: 1});
 
@@ -376,7 +398,6 @@
         }
 
         function onHandsResults(results) {
-
             if (!isRunning) return;
 
             let handsDetected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
@@ -419,7 +440,6 @@
 
         async function startSystem() {
             try {
-
                 els.canvas.style.display = 'block';
                 els.canvas.style.opacity = '1';
 
@@ -434,6 +454,9 @@
                 CONFIG.EAR_THRESHOLD = parseFloat(document.getElementById('earThreshold').value);
                 CONFIG.MAR_THRESHOLD = parseFloat(document.getElementById('marThreshold').value);
                 CONFIG.SOS_TIMEOUT_MS = parseInt(document.getElementById('sosTimeoutInput').value) * 1000;
+                
+                const handInput = document.getElementById('handFrameInput');
+                if(handInput) CONFIG.HAND_OFF_FRAMES = parseInt(handInput.value);
 
                 if (!faceMesh || !hands) await setupAI();
 
@@ -442,14 +465,13 @@
                     onFrame: async () => {
                         if (!isRunning) return;
                         
-
                         if (els.canvas.width === 0) {
                             els.canvas.width = video.videoWidth;
                             els.canvas.height = video.videoHeight;
                         }
 
                         els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-
+                        
                         if (els.canvas.width > 0) {
                             els.canvas.width = video.videoWidth;
                             els.canvas.height = video.videoHeight;
@@ -509,10 +531,8 @@
             els.alertYawn.style.display = 'none';
 
             els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-
             els.canvas.width = 0;
             els.canvas.height = 0;
-
             els.canvas.style.display = 'none';
         }
 
