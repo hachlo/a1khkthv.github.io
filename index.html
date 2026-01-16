@@ -466,6 +466,7 @@
 
                 if (!faceMesh || !hands) await setupAI();
 
+            if (!camera) {
                 const video = els.video;
                 camera = new Camera(video, {
                     onFrame: async () => {
