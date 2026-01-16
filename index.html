@@ -466,40 +466,17 @@
 
                 if (!faceMesh || !hands) await setupAI();
                 
-            if (!camera) {
-                const video = els.video;
-                camera = new Camera(video, {
+                camera = new Camera(els.video, {
                     onFrame: async () => {
-                        if (!isRunning) return;
-                        
-                        if (els.canvas.width === 0) {
-                            els.canvas.width = video.videoWidth;
-                            els.canvas.height = video.videoHeight;
-                        }
-
-                        els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-                        
-                        if (els.canvas.width > 0) {
-                            els.canvas.width = video.videoWidth;
-                            els.canvas.height = video.videoHeight;
-                        }
-                        
-                        await faceMesh.send({image: video});
-                        await hands.send({image: video});
-                        
+                        await faceMesh.send({image: els.video});
+                        await hands.send({image: els.video});
                         checkSOSStatus();
-
-                        frameCount++;
-                        const now = Date.now();
-                        if (now - lastFpsTime >= 1000) {
-                            els.fps.textContent = frameCount;
-                            frameCount = 0;
-                            lastFpsTime = now;
-                        }
+                        updateFPS();
                     },
-                    width: 1280, height: 720
+                    width: 1280,
+                    height: 720
                 });
-
+                
                 await camera.start();
                 document.getElementById('loading').style.display = 'none';
 
@@ -577,6 +554,16 @@
         document.getElementById('earThreshold').addEventListener('change', (e) => CONFIG.EAR_THRESHOLD = parseFloat(e.target.value));
         document.getElementById('marThreshold').addEventListener('change', (e) => CONFIG.MAR_THRESHOLD = parseFloat(e.target.value));
         document.getElementById('sosTimeoutInput').addEventListener('change', (e) => CONFIG.SOS_TIMEOUT_MS = parseInt(e.target.value) * 1000);
+
+        function updateFPS() {
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFpsTime >= 1000) {
+                els.fps.textContent = frameCount;
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+        }
 
     </script>
 </body>
